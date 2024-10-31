@@ -1,0 +1,34 @@
+services:
+  kafka:
+    image: apache/kafka:3.8.0
+    ports:
+      - "9092:9092"    
+    volumes:
+      - kafka-data:/var/lib/kafka
+
+  pulsar:
+    image: apachepulsar/pulsar:latest
+    command: >
+      /pulsar/bin/pulsar standalone
+    ports:
+      - "6650:6650"  # Pulsar client service
+      - "8080:8080"  # Pulsar admin service
+    environment:
+      PULSAR_ADMIN_PORT: "8080"  # Set the admin port
+
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres         # Replace with your username
+      POSTGRES_PASSWORD: postgres   # Replace with your password      
+    ports:
+      - "5432:5432"                       # Expose PostgreSQL on port 5432
+    volumes:
+      - ./db:/var/lib/postgresql/data # Persist data
+
+volumes:
+  kafka-data:
+  
