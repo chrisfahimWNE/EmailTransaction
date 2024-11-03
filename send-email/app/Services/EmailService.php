@@ -17,15 +17,7 @@ class EmailService
         $this->jwtService = $jwtService;
     }
 
-    public function sendEmail($recipient, $subject, $message)
-    {
-        Mail::to($recipient)->send(new SendEmail($subject, $message));
-    }
-
-    public function sendConfirmEmail(ConfirmEmailDTO $confirmEmailDTO, $token)
-    {
-        Mail::to($confirmEmailDTO->email)->send(new SendConfirmEmail("Confirm Email", $token));
-    }
+    
 
     public function getConfirmEmail(ConfirmEmailDTO $confirmEmailDTO)
     {

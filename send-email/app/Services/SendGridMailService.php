@@ -3,13 +3,16 @@
 namespace App\Services;
 
 use App\DTO\EmailSentDTO;
+use App\Mail\NewEmail;
+use App\Services\IEmailService;
+use App\Models\EmailAction;
+use App\Models\EmailSentLookup;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+
 use SendGrid;
 use SendGrid\Mail\Mail;
-use Illuminate\Mail\Mailable;
-use Illuminate\Support\Facades\Mail as LaravelMail;
-
-use App\Services\IEmailService;
-
 
 class SendGridMailService implements IEmailService
 {
@@ -22,29 +25,66 @@ class SendGridMailService implements IEmailService
         );
     }
 
-    public function sendEmail(Mailable $mailable): EmailSentDTO
-    {
-        // Render the Mailable to HTML
-        //$htmlContent = LaravelMail::to($mailable->to)
-          //  ->send($mailable)
-            //->render();
+    public function handleWebhook(Request $request): void {
+        $validated = $request->validate([
+            '*.email' => 'required|email',
+            '*.event' => 'required|string',
+            '*.ip' => 'required|ip',
+            '*.response' => 'required|string',
+            '*.sg_event_id' => 'required|string',
+            '*.sg_message_id' => 'required|string',
+            '*.smtp-id' => 'required|string',
+            '*.timestamp' => 'required|integer',
+            '*.tls' => 'required|boolean',
+        ]);
 
+        // Extracting sg_message_id
+        $sgMessageId = $validated[0]['sg_message_id'];
+
+        // Use regex to extract the desired part
+        preg_match('/^(.*?)\./', $sgMessageId, $matches);
+
+        // Output the result
+        if (isset($matches[1])) {
+            $extractedId = $matches[1];
+            
+            $emailLookup = EmailSentLookup::where('email_id', $extractedId)->first();
+            if (!$emailLookup) {
+                Log::error("Could not find email token using: {$validated}");
+                return;
+            }
+            
+            $emailActionData = [
+                'token' => $emailLookup->token,
+                'action' => "sendgrid_{$validated[0]['event']}",
+                'version' => '',
+                'emailType' => '',
+            ];
+            EmailAction::create($emailActionData);
+
+        }
+        else
+        {
+            Log::error("Could not extract email id from {$validated}");
+        }
+
+    }
+
+    public function sendEmail(NewEmail $mailable): EmailSentDTO
+    {
+        //create the sendgrid mail
         $email = new Mail();
-        $email->setFrom(env('MAIL_FROM_ADDRESS'), "Chris Fahim");
+        $email->setFrom($mailable->from[0]["address"], $mailable->from[0]["name"]);
         $email->setSubject($mailable->subject);
-        //$email->addTos($mailable->to);
-        // Ensure $mailable->to is an array of email addresses
-        var_dump("mailable.to is: ",$mailable->to);
         foreach ($mailable->to as $recipient) {
             $email->addTo($recipient['address'], $recipient['name']);
         }
-        $email->addContent("text/html", $mailable->render());
+        $email->addContent("text/html", $mailable->htmlContent);
 
         try {
             
             $response = $this->sendGrid->send($email);
             
-            var_dump($response);
             return new EmailSentDTO($response->statusCode(),
                 [],
                 $response->headers(true),
