@@ -12,13 +12,15 @@ class PulsarConsumerService
 {
     protected $consumer;
 
+    const TOPIC_SUBS = [
+        "send-email" => "persistent://public/default/send-email",
+        "build-email" => "persistent://public/default/build-email",
+    ];
+
     public function __construct()
     {
         $config = new ConsumerOptions();
-        $config->setTopics([
-            env('PULSAR_SEND_CONFIRM_EMAIL_TOPIC'),
-            env('PULSAR_RECIEVE_EMAIL_TOPIC')
-        ]);
+        $config->setTopics(self::TOPIC_SUBS);
         $config->setSubscription(env('PULSAR_SUBSCRIPTION'));
         $config->setSubscriptionType(SubscriptionType::Shared);
         
@@ -40,15 +42,26 @@ class PulsarConsumerService
                 // Acknowledge the message
                 $this->consumer->ack($message);
 
-                if($message->getTopic() === env('PULSAR_SEND_CONFIRM_EMAIL_TOPIC'))
+                if($message->getTopic() === self::TOPIC_SUBS["send-email"])
                 {
                     $payload = json_decode($message->getPayload(), true);
-                    $response = Http::post('http://localhost:8000/api/send-confirm-email', $payload);
+                    $response = Http::post('http://localhost:8001/api/send-email', $payload);
 
                     if ($response->successful()) {
-                        echo 'successfully triggered email' . PHP_EOL;
+                        echo 'successfully triggered email' . $response->body() . PHP_EOL;
                     } else {
-                        echo 'failed to trigger email' . PHP_EOL;
+                        echo 'failed to trigger email: ' . $response->body() . PHP_EOL;
+                    }
+                }
+                elseif($message->getTopic() === self::TOPIC_SUBS["build-email"])
+                {
+                    $payload = json_decode($message->getPayload(), true);
+                    $response = Http::post('http://localhost:8000/api/build-email', $payload);
+
+                    if ($response->successful()) {
+                        echo 'successfully triggered email' . $response->body() . PHP_EOL;
+                    } else {
+                        echo 'failed to trigger email: ' . $response->body() . PHP_EOL;
                     }
                 }
             }
